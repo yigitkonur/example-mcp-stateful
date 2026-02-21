@@ -1,172 +1,115 @@
-reference implementation of a stateful MCP server over streamable HTTP. sessions persist across requests via in-memory or Redis-backed storage. includes event sourcing for SSE resumability and just-in-time instance reconstruction for horizontal scaling without sticky sessions.
+# MCP HTTP Stateful Boilerplate (TypeScript SDK v2)
 
-ships as a calculator service — arithmetic, scientific math, history, prompts — but the point is the infrastructure patterns, not the math.
+Learning-first boilerplate for building **stateful MCP servers over Streamable HTTP** with official MCP TypeScript SDK v2 pre-release primitives.
 
-```bash
-npm install && npm run dev
-# listening on :1453
-```
+This repository provides:
 
-[![node](https://img.shields.io/badge/node-20+-93450a.svg?style=flat-square)](https://nodejs.org/)
-[![typescript](https://img.shields.io/badge/typescript-5.7-93450a.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![license](https://img.shields.io/badge/license-MIT-grey.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+- a runnable reference server (`src/`)
+- a scaffold creator CLI (`mcp-http-stateful-starter`)
+- starter templates for generating new projects (`templates/http-stateful/`)
 
-> part of a series: [stdio](https://github.com/yigitkonur/example-mcp-server-stdio) · [stateless HTTP](https://github.com/yigitkonur/example-mcp-server-http-stateless) · **stateful HTTP** (you are here)
+## Changelog (Latest First)
 
----
+### 2026-02-21 - Major Rewrite for Upcoming TypeScript SDK v2
 
-## what it does
+- Full migration from old v1-style architecture to v2 primitives.
+- Switched to `@modelcontextprotocol/server` + `@modelcontextprotocol/node`.
+- Rebuilt runtime around stateful Streamable HTTP (`POST`/`GET`/`DELETE /mcp`).
+- Added scaffold creator CLI and starter templates.
+- Added dedicated v2 docs and deep-dive notes.
+- Kept installs reproducible with vendored official v2 pre-release tarballs.
 
-single `/mcp` endpoint handles the full MCP lifecycle:
+Full details: `CHANGELOG.md`.
 
-- `POST /mcp` — JSON-RPC commands. initializes sessions (via `mcp-session-id` header) and handles all tool/resource/prompt calls
-- `GET /mcp` — SSE stream for server-to-client push. supports `Last-Event-Id` for resumability
-- `DELETE /mcp` — explicit session teardown
-- `GET /health` — health check with storage mode, session count, uptime
-- `GET /metrics` — Prometheus scrape endpoint (`mcp_calculations_total`, `mcp_active_sessions`)
+## About SDK v2 (Proper Context)
 
-### tools
+MCP TypeScript SDK v2 is currently pre-release on `main` and differs significantly from v1:
 
-| tool | what it does |
-|:---|:---|
-| `calculate` | basic arithmetic (`add`, `subtract`, `multiply`, `divide`). optional streaming progress |
-| `batch_calculate` | multiple operations in one call with incremental progress |
-| `advanced_calculate` | `factorial`, `power`, `sqrt`, `log`, `sin`, `cos`, `tan` |
-| `demo_progress` | pure progress notification demo, no state changes |
+- package split: server/client/core (plus runtime adapters like node)
+- server HTTP transport changed to `NodeStreamableHTTPServerTransport`
+- handler and registration style centered on `registerTool` / `registerResource` / `registerPrompt`
+- server-side SDK auth exports removed; auth should be external middleware
+- server-side standalone SSE transport removed; Streamable HTTP is the migration path
 
-### resources
+Official references:
 
-| resource | URI |
-|:---|:---|
-| math constants | `calculator://constants` — pi, e, sqrt2, ln2, ln10 |
-| calculation history | `calculator://history/{id}` — per-session, ring buffer of 50 |
-| stats | `calculator://stats` — live from Prometheus registry |
-| session info | `session://info/{id}` — uptime, request count, last activity |
-| formulas | `formulas://library` — quadratic, pythagorean, compound interest |
+- SDK repository: <https://github.com/modelcontextprotocol/typescript-sdk>
+- migration guide: <https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/migration.md>
+- server guide: <https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/server.md>
 
-### prompts
-
-`explain-calculation`, `generate-problems`, `solve_math_problem`, `explain_formula`, `calculator_assistant` — all generate user-facing messages for LLM consumption.
-
-## install
-
-### local (in-memory, no dependencies)
+## Quick Start
 
 ```bash
 npm install
-npm run dev     # tsx watch, hot-reload
+npm run dev
 ```
 
-### with Redis
+Endpoints:
+
+- MCP: `http://127.0.0.1:1453/mcp`
+- health: `http://127.0.0.1:1453/health`
+- sessions: `http://127.0.0.1:1453/sessions`
+
+## Scaffold Creator CLI
+
+Create a new starter project:
 
 ```bash
-docker compose up --build -d
-# or: make up
+npm run create -- init my-mcp-app
 ```
 
-### production with secrets
+or from compiled output:
 
 ```bash
-echo "your-password" > redis_password.txt
-make prod-secure-up
+node dist/cli/index.js init my-mcp-app
 ```
 
-## configuration
+Common options:
 
-all via environment variables, no config files loaded at runtime.
-
-| variable | default | description |
-|:---|:---|:---|
-| `PORT` | `1453` | listen port |
-| `USE_REDIS` | `false` | `true` enables Redis-backed sessions and event sourcing |
-| `REDIS_HOST` | `localhost` | Redis host |
-| `REDIS_PORT` | `6379` | Redis port |
-| `REDIS_PASSWORD` | — | Redis auth (optional) |
-| `REDIS_DB` | `0` | Redis database index |
-| `SESSION_TIMEOUT` | `1800000` | session TTL in ms (30 min) |
-| `RATE_LIMIT_WINDOW` | `900000` | rate limit window in ms (15 min) |
-| `RATE_LIMIT_MAX` | `1000` | max requests per window |
-| `CORS_ORIGIN` | `*` | allowed origin |
-| `SAMPLE_TOOL_NAME` | — | if set, registers an extra echo tool with this name |
-| `LOG_LEVEL` | `info` | log level |
-
-## architecture
-
-two files do all the work:
-
-```
-src/
-  types.ts    — interfaces, Zod schemas, custom error hierarchy
-  server.ts   — storage implementations, MCP registration, Express app, lifecycle
+```bash
+npm run create -- init my-mcp-app --force
+npm run create -- init my-mcp-app --dir ./playground
+npm run create -- init my-mcp-app --sdk registry
 ```
 
-### storage layer (strategy pattern)
+- default mode is `--sdk vendored` for reproducibility
+- `--sdk registry` expects your environment to resolve v2 pre-release packages
 
-`ISessionStore` interface with two implementations:
+## v2 Packaging Note
 
-- **`InMemorySessionStore`** — `Map<string, SessionData>` with manual expiry check on read and periodic cleanup
-- **`RedisSessionStore`** — `mcp_session:{id}` keys with JSON serialization and TTL. fail-safe reads, fail-loud writes
+To keep this project reproducible while v2 is pre-release, this repo vendors official tarballs:
 
-same pattern for events:
+- `vendor/mcp-sdk-v2/modelcontextprotocol-server-2.0.0-alpha.0.tgz`
+- `vendor/mcp-sdk-v2/modelcontextprotocol-node-2.0.0-alpha.0.tgz`
 
-- **`InMemoryEventStore`** — 10k event ring buffer, 24h max age, sequential ID generation
-- **`RedisEventStore`** — Redis Streams with `XADD MAXLEN ~ 10000`, `XREAD` for replay
+Pinned source commit: `c4ee360aac7afd2964785abac379a290d0c9847a` (SDK main branch, 2026-02-20).
 
-### session lifecycle
+## Docs
 
-1. `POST /mcp` with no session header + `initialize` body → server generates UUID, stores `SessionData` to persistent store first, then creates `McpServer` and connects transport
-2. subsequent requests carry `mcp-session-id` header → looked up in local cache or reconstructed from store (JIT reconstruction)
-3. `DELETE /mcp` → transport closed, removed from cache, deleted from store, Prometheus gauge decremented
+- docs index: `docs/README.md`
+- getting started: `docs/getting-started.md`
+- scaffold CLI guide: `docs/scaffold-cli.md`
+- v2 SDK notes: `docs/v2-sdk-notes.md`
+- protocol deep dive: `docs/http-stateful-v2-deep-dive.md`
 
-### JIT instance reconstruction
+## Validation Scripts
 
-when a request hits a node that doesn't have the session in its local `Map`, the server:
+- `npm run check` - typecheck + lint + format check
+- `npm run build` - compile TypeScript
+- `npm run smoke` - end-to-end MCP smoke test
+- `npm run ci` - check + build + smoke
 
-1. verifies session exists in persistent store
-2. reconstructs a new `StreamableHTTPServerTransport` with the existing session ID
-3. creates a fresh `McpServer`, connects, caches locally
+## MCP CLI Verification
 
-this is what makes horizontal scaling work without sticky sessions or shared memory.
+This server and scaffold output were verified using `mcp-cli`:
 
-### event sourcing / SSE resumability
+1. connect and inventory: `mcp-cli info <server>`
+2. inspect tool schemas: `mcp-cli info <server> <tool>`
+3. run valid and invalid tool calls: `mcp-cli call <server> <tool> '<json>'`
+4. run with fresh sessions after rebuilds: `MCP_NO_DAEMON=1 ...`
 
-both event store implementations support `replayEventsAfter(lastEventId)`. when a client reconnects with `Last-Event-Id`, all missed events are replayed through the SSE stream.
+`mcp-cli` is tool-focused, so resources/prompts/session lifecycle were additionally validated with direct JSON-RPC HTTP tests in a persistent session.
 
-## docker
-
-multi-stage Dockerfile: `node:22-alpine` builder → production image with `dumb-init` (proper PID 1 signal handling), non-root `nodejs` user (UID 1001), prod-only deps. built-in `HEALTHCHECK` on `/health`.
-
-```yaml
-# docker-compose.yml brings up mcp-server + redis:7-alpine
-# docker-compose.prod.yml adds persistence (appendonly) and named volumes
-# docker-compose.secrets.yml adds Docker Secrets for REDIS_PASSWORD
-```
-
-## metrics
-
-| metric | type | description |
-|:---|:---|:---|
-| `mcp_calculations_total` | counter | labeled by `operation` (add, subtract, multiply, ...) |
-| `mcp_active_sessions` | gauge | current session count |
-
-scrape at `GET /metrics`.
-
-## project structure
-
-```
-src/
-  types.ts                    — data contracts, Zod schemas, error hierarchy
-  server.ts                   — everything else (storage, MCP, Express, lifecycle)
-docker-compose.yml            — base: server + Redis
-docker-compose.dev.yml        — hot-reload, debug port 9229
-docker-compose.prod.yml       — Redis persistence, named volumes
-docker-compose.secrets.yml    — Docker Secrets for Redis password
-Dockerfile                    — multi-stage, non-root, dumb-init
-Makefile                      — convenience targets
-smithery.yaml                 — Smithery registry metadata
-.github/workflows/ci.yml      — typecheck + lint + format + build
-```
-
-## license
+## License
 
 MIT
