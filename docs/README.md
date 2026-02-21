@@ -1,6 +1,6 @@
 # Documentation Hub
 
-This folder contains the official documentation for `example-mcp-server-http-stateful` after the SDK v2 rewrite.
+This folder contains the official documentation for `example-mcp-stateful` after the SDK v2 rewrite.
 
 ## Changelog (Latest First)
 

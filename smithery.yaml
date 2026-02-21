@@ -1,7 +1,7 @@
 id: mcp-http-stateful-v2-boilerplate
 name: MCP HTTP Stateful v2 Boilerplate
 description: Learning-first MCP Streamable HTTP stateful server + CLI starter, aligned to official TypeScript SDK v2 pre-release primitives.
-repository: https://github.com/yigitkonur/example-mcp-server-http-stateful
+repository: https://github.com/yigitkonur/example-mcp-stateful
 license: MIT
 
 startCommand:
