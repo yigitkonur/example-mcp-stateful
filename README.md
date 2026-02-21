@@ -1,364 +1,172 @@
-<div align="center">
+reference implementation of a stateful MCP server over streamable HTTP. sessions persist across requests via in-memory or Redis-backed storage. includes event sourcing for SSE resumability and just-in-time instance reconstruction for horizontal scaling without sticky sessions.
 
-**[STDIO](https://github.com/yigitkonur/example-mcp-server-stdio) | [Stateful HTTP](https://github.com/yigitkonur/example-mcp-server-streamable-http) | [Stateless HTTP](https://github.com/yigitkonur/example-mcp-server-streamable-http-stateless) | [SSE](https://github.com/yigitkonur/example-mcp-server-sse)**
+ships as a calculator service — arithmetic, scientific math, history, prompts — but the point is the infrastructure patterns, not the math.
 
-</div>
+```bash
+npm install && npm run dev
+# listening on :1453
+```
+
+[![node](https://img.shields.io/badge/node-20+-93450a.svg?style=flat-square)](https://nodejs.org/)
+[![typescript](https://img.shields.io/badge/typescript-5.7-93450a.svg?style=flat-square)](https://www.typescriptlang.org/)
+[![license](https://img.shields.io/badge/license-MIT-grey.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+
+> part of a series: [stdio](https://github.com/yigitkonur/example-mcp-server-stdio) · [stateless HTTP](https://github.com/yigitkonur/example-mcp-server-http-stateless) · **stateful HTTP** (you are here)
 
 ---
 
-# 🎓 MCP Stateful HTTP Streamable Server - Educational Reference
+## what it does
 
-<div align="center">
+single `/mcp` endpoint handles the full MCP lifecycle:
 
-**A Production-Ready Model Context Protocol Server Teaching Hybrid Storage, Distributed Systems, and Resilient Error Handling**
+- `POST /mcp` — JSON-RPC commands. initializes sessions (via `mcp-session-id` header) and handles all tool/resource/prompt calls
+- `GET /mcp` — SSE stream for server-to-client push. supports `Last-Event-Id` for resumability
+- `DELETE /mcp` — explicit session teardown
+- `GET /health` — health check with storage mode, session count, uptime
+- `GET /metrics` — Prometheus scrape endpoint (`mcp_calculations_total`, `mcp_active_sessions`)
 
-[![MCP Version](https://img.shields.io/badge/MCP-1.0.0-blue)](https://spec.modelcontextprotocol.io)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-[![SDK](https://img.shields.io/badge/SDK-Production%20Ready-green)](https://github.com/modelcontextprotocol/typescript-sdk)
-[![Architecture](https://img.shields.io/badge/Architecture-Resilient%20Hybrid-gold)]()
+### tools
 
-_Learn by building a world-class, horizontally-scalable MCP server that is robust by design._
+| tool | what it does |
+|:---|:---|
+| `calculate` | basic arithmetic (`add`, `subtract`, `multiply`, `divide`). optional streaming progress |
+| `batch_calculate` | multiple operations in one call with incremental progress |
+| `advanced_calculate` | `factorial`, `power`, `sqrt`, `log`, `sin`, `cos`, `tan` |
+| `demo_progress` | pure progress notification demo, no state changes |
 
-</div>
+### resources
 
-## 🎯 Project Goal & Core Concepts
+| resource | URI |
+|:---|:---|
+| math constants | `calculator://constants` — pi, e, sqrt2, ln2, ln10 |
+| calculation history | `calculator://history/{id}` — per-session, ring buffer of 50 |
+| stats | `calculator://stats` — live from Prometheus registry |
+| session info | `session://info/{id}` — uptime, request count, last activity |
+| formulas | `formulas://library` — quadratic, pythagorean, compound interest |
 
-This repository is a **masterclass in building distributed systems** with the Model Context Protocol. It is a comprehensive reference implementation that demonstrates how to build a robust, scalable, and fault-tolerant MCP server using a **stateful, hybrid-storage architecture**.
+### prompts
 
-This project is designed to teach five core concepts:
+`explain-calculation`, `generate-problems`, `solve_math_problem`, `explain_formula`, `calculator_assistant` — all generate user-facing messages for LLM consumption.
 
-1.  **🏗️ Clean Architecture**: Master a clean separation of concerns by organizing code into a `types.ts` for data contracts and a `server.ts` for application logic.
-2.  **⚙️ Hybrid Storage (Strategy Pattern)**: Implement a system that runs with zero dependencies locally (in-memory) and seamlessly transitions to a distributed architecture using Redis for production.
-3.  **🔒 Scalability & Zero-Downtime**: Build a system that scales horizontally and supports zero-downtime deployments by externalizing state and eliminating the need for "sticky sessions".
-4.  **⚡ Advanced State Management**: Learn critical patterns for distributed systems, including **storage abstraction** (`ISessionStore`), **race condition prevention**, and **just-in-time instance reconstruction**.
-5.  🛡️ **Resilience & Predictability**: Implement a robust error handling strategy using **specific, typed errors** and a **global error boundary** to build a server that fails gracefully and predictably.
+## install
 
-## 🤔 When to Use This Architecture
-
-This stateful, distributed architecture is the ideal choice for complex, high-availability applications:
-
-- **Enterprise Applications:** Systems that require persistent user sessions and must remain available during deployments or node failures.
-- **Collaborative Tools:** Scenarios where multiple users or agents interact with a shared context that must be centrally managed.
-- **Multi-Turn Conversational Agents:** Complex chatbots or agents that need to remember the entire history of an interaction to provide coherent responses.
-- **Any system where losing session state or failing unpredictably is unacceptable.**
-
-## 🚀 Quick Start
-
-This server is designed to work in two modes: a simple local mode and a scalable production mode.
-
-### 1. Zero-Configuration Local Development
-
-Run the server instantly on your machine with zero external dependencies.
+### local (in-memory, no dependencies)
 
 ```bash
-# Clone the repository
-git clone https://github.com/yigitkonur/example-mcp-server-streamable-http
-cd example-mcp-server-streamable-http
-
-# Install dependencies
 npm install
-
-# Start the server in development mode (uses in-memory storage)
-npm run dev
-
-# The server starts on port 1453 with the message:
-# ✅ Using In-Memory for single-node state management.
+npm run dev     # tsx watch, hot-reload
 ```
 
-### 2. Production Mode with Docker & Redis
-
-Test the full distributed architecture using the provided Docker Compose setup.
+### with Redis
 
 ```bash
-# Make sure Docker is running on your machine
-# This single command starts the server and a Redis instance
-docker-compose up --build
-
-# The server starts on port 1453 and connects to the Redis container:
-# ✅ Using Redis for distributed state management.
-# INFO: Redis Client Connected
+docker compose up --build -d
+# or: make up
 ```
 
-## 📐 Architecture Overview
+### production with secrets
 
-### Code & File Structure
+```bash
+echo "your-password" > redis_password.txt
+make prod-secure-up
+```
 
-This project follows a clean architecture with a deliberate separation of concerns.
+## configuration
+
+all via environment variables, no config files loaded at runtime.
+
+| variable | default | description |
+|:---|:---|:---|
+| `PORT` | `1453` | listen port |
+| `USE_REDIS` | `false` | `true` enables Redis-backed sessions and event sourcing |
+| `REDIS_HOST` | `localhost` | Redis host |
+| `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_PASSWORD` | — | Redis auth (optional) |
+| `REDIS_DB` | `0` | Redis database index |
+| `SESSION_TIMEOUT` | `1800000` | session TTL in ms (30 min) |
+| `RATE_LIMIT_WINDOW` | `900000` | rate limit window in ms (15 min) |
+| `RATE_LIMIT_MAX` | `1000` | max requests per window |
+| `CORS_ORIGIN` | `*` | allowed origin |
+| `SAMPLE_TOOL_NAME` | — | if set, registers an extra echo tool with this name |
+| `LOG_LEVEL` | `info` | log level |
+
+## architecture
+
+two files do all the work:
 
 ```
 src/
-├── types.ts    # Data Contracts: Interfaces, Zod Schemas, Custom Errors
-└── server.ts   # Application Logic: Storage Impls, Server Factory, HTTP Endpoints
+  types.ts    — interfaces, Zod schemas, custom error hierarchy
+  server.ts   — storage implementations, MCP registration, Express app, lifecycle
 ```
 
-### Key Architectural Principles
+### storage layer (strategy pattern)
 
-1.  **Storage Abstraction (Strategy Pattern):** The core application logic is decoupled from the storage mechanism (`in-memory` vs. `Redis`) via an `ISessionStore` interface defined in `types.ts`.
-2.  **Stateless Nodes, Stateful System:** Individual server nodes hold only a temporary cache of session objects. The authoritative state lives in a central store (Redis), allowing the system as a whole to be stateful and resilient.
-3.  **Just-in-Time Reconstruction:** Any server node can handle a request for any session ID. If a session is not in a node's local cache, it is reconstructed on-the-fly from the central store. **This eliminates the need for sticky sessions.**
-4.  **Predictable Error Handling:** The server uses a multi-layered error strategy. It throws specific, typed errors for known failure modes (like an invalid session) and uses a global Express error handler as a safety net to catch all unexpected issues, ensuring the client always receives a secure, protocol-compliant error response.
+`ISessionStore` interface with two implementations:
 
-### Architectural Diagrams
+- **`InMemorySessionStore`** — `Map<string, SessionData>` with manual expiry check on read and periodic cleanup
+- **`RedisSessionStore`** — `mcp_session:{id}` keys with JSON serialization and TTL. fail-safe reads, fail-loud writes
 
-#### Single-Node Mode (Local Development)
+same pattern for events:
 
-```
-┌─────────────────────────────────────────┐
-│          Express Server                 │
-│ ┌─────────────────────────────────────┐ │
-│ │   Global Error Handler (Safety Net) │ │
-│ └─────────────────────────────────────┘ │
-│  Rate Limiting | CORS | Health Checks  │
-├─────────────────────────────────────────┤
-│      In-Memory Session Store            │
-│         (Ephemeral Map<id, Data>)       │
-├─────────────────────────────────────────┤
-│   Per-Session MCP Server Instances      │
-│     (Cached in an in-memory Map)        │
-└─────────────────────────────────────────┘
-```
+- **`InMemoryEventStore`** — 10k event ring buffer, 24h max age, sequential ID generation
+- **`RedisEventStore`** — Redis Streams with `XADD MAXLEN ~ 10000`, `XREAD` for replay
 
-#### Distributed Mode (Production)
+### session lifecycle
 
-```
-        Load Balancer (No Sticky Sessions)
-                   |
-    +--------------+--------------+
-    |              |              |
-┌─────────┐    ┌─────────┐    ┌─────────┐
-│ Server A│    │ Server B│    │ Server C│
-└─────────┘    └─────────┘    └─────────┘
-    |              |              |
-    +--------------+--------------+
-                   |
-     ┌────────────────────────────┐
-     │       Redis Cluster        │
-     │ (Authoritative Session &   │
-     │      Event Store)          │
-     └────────────────────────────┘
+1. `POST /mcp` with no session header + `initialize` body → server generates UUID, stores `SessionData` to persistent store first, then creates `McpServer` and connects transport
+2. subsequent requests carry `mcp-session-id` header → looked up in local cache or reconstructed from store (JIT reconstruction)
+3. `DELETE /mcp` → transport closed, removed from cache, deleted from store, Prometheus gauge decremented
+
+### JIT instance reconstruction
+
+when a request hits a node that doesn't have the session in its local `Map`, the server:
+
+1. verifies session exists in persistent store
+2. reconstructs a new `StreamableHTTPServerTransport` with the existing session ID
+3. creates a fresh `McpServer`, connects, caches locally
+
+this is what makes horizontal scaling work without sticky sessions or shared memory.
+
+### event sourcing / SSE resumability
+
+both event store implementations support `replayEventsAfter(lastEventId)`. when a client reconnects with `Last-Event-Id`, all missed events are replayed through the SSE stream.
+
+## docker
+
+multi-stage Dockerfile: `node:22-alpine` builder → production image with `dumb-init` (proper PID 1 signal handling), non-root `nodejs` user (UID 1001), prod-only deps. built-in `HEALTHCHECK` on `/health`.
+
+```yaml
+# docker-compose.yml brings up mcp-server + redis:7-alpine
+# docker-compose.prod.yml adds persistence (appendonly) and named volumes
+# docker-compose.secrets.yml adds Docker Secrets for REDIS_PASSWORD
 ```
 
-## 🔧 Core Implementation Patterns
+## metrics
 
-This section highlights the most important code patterns that define this architecture.
+| metric | type | description |
+|:---|:---|:---|
+| `mcp_calculations_total` | counter | labeled by `operation` (add, subtract, multiply, ...) |
+| `mcp_active_sessions` | gauge | current session count |
 
-### Pattern 1: Storage Abstraction (`ISessionStore`)
+scrape at `GET /metrics`.
 
-**The Principle:** Code to an interface, not a concrete implementation. This decouples our application logic from the storage technology.
+## project structure
 
-**The Implementation (`src/types.ts`):**
-
-```typescript
-// The contract that any storage backend must adhere to.
-export interface ISessionStore {
-  get(sessionId: string): Promise<SessionData | null>;
-  set(sessionId: string, data: SessionData): Promise<void>;
-  // ... and other methods
-}
-
-// Application logic in server.ts only ever interacts with this interface.
+```
+src/
+  types.ts                    — data contracts, Zod schemas, error hierarchy
+  server.ts                   — everything else (storage, MCP, Express, lifecycle)
+docker-compose.yml            — base: server + Redis
+docker-compose.dev.yml        — hot-reload, debug port 9229
+docker-compose.prod.yml       — Redis persistence, named volumes
+docker-compose.secrets.yml    — Docker Secrets for Redis password
+Dockerfile                    — multi-stage, non-root, dumb-init
+Makefile                      — convenience targets
+smithery.yaml                 — Smithery registry metadata
+.github/workflows/ci.yml      — typecheck + lint + format + build
 ```
 
-### Pattern 2: Just-in-Time Instance Reconstruction
+## license
 
-**The Principle:** To achieve horizontal scalability without sticky sessions, any server node must be able to handle a request for any active session.
-
-**The Implementation (`src/server.ts`):**
-
-```typescript
-// DRY Implementation: Single helper function eliminates code duplication
-async function getOrCreateInstances(
-  sessionId: string,
-): Promise<{ transport: StreamableHTTPServerTransport; server: McpServer }> {
-  // 1. Check high-performance local cache first
-  let instances = sessionInstances.get(sessionId);
-  if (instances) return instances;
-
-  // 2. Verify session exists in authoritative persistent store
-  const sessionData = await sessionStore.get(sessionId);
-  if (!sessionData) {
-    throw new SessionNotFoundError('Session does not exist or has expired.', { sessionId });
-  }
-
-  // 3. Reconstruct instances from persistent state
-  console.log(`Reconstructing instances for session ${sessionId} on this node`);
-  // ... reconstruction logic ...
-
-  return instances;
-}
-
-// Used consistently across POST, GET, and DELETE endpoints
-const instances = await getOrCreateInstances(sessionId);
-```
-
-### Pattern 3: Critical Initialization Order
-
-**The Principle:** To prevent race conditions in a distributed system, the session record must be saved to the persistent store _before_ the `McpServer` instance is created.
-
-**The Implementation (`src/server.ts`):**
-
-```typescript
-// 1. A new session request arrives. Generate a session ID.
-const newSessionId = randomUUID();
-
-// 2. Create the initial session data object.
-const sessionData = createNewSessionData();
-
-// 3. CRITICAL: Persist the session data to Redis/memory FIRST.
-await sessionStore.set(newSessionId, sessionData);
-
-// 4. NOW it's safe to create the McpServer instance, which may need to read this data.
-const server = await createMCPServer(newSessionId);
-```
-
-### Pattern 4: Resilient & Predictable Error Handling
-
-**The Principle:** A robust server fails predictably. We use specific error types for known issues and a global safety net for everything else.
-
-**The Implementation:**
-
-**1. Define Custom, Specific Errors (`src/types.ts`):** We create a hierarchy of error classes to represent distinct failure modes.
-
-```typescript
-// A base class for all our application's errors.
-export class CalculatorServerError extends McpError {
-  /* ... */
-}
-
-// A specific error for when a session is not found.
-export class SessionNotFoundError extends CalculatorServerError {
-  /* ... */
-}
-
-// A specific error for when a database/Redis operation fails.
-export class StorageOperationFailedError extends CalculatorServerError {
-  /* ... */
-}
-```
-
-**2. Throw Specific Errors in Logic (`src/server.ts`):** Instead of returning generic errors, our code throws these specific types.
-
-```typescript
-// Inside an HTTP handler...
-const sessionData = await sessionStore.get(sessionId);
-if (!sessionData) {
-  // This is a known, predictable failure. Throw the specific error.
-  throw new SessionNotFoundError('Session not found or expired', { sessionId });
-}
-```
-
-**3. Complete Error Boundary Coverage (`src/server.ts`):** Every endpoint throws specific errors instead of direct HTTP responses, ensuring 100% coverage by the global handler. This prevents any error from bypassing our safety net.
-
-```typescript
-// All endpoints throw errors instead of sending responses directly
-if (!sessionId) {
-  throw new McpError(ErrorCode.InvalidRequest, 'Mcp-Session-Id header is required');
-}
-
-// Global Express middleware catches ALL errors
-app.use((err: Error, req: Request, res: Response, next: express.NextFunction) => {
-  // 1. Log the full, detailed error for our internal records.
-  console.error('[GLOBAL ERROR HANDLER] Unhandled error caught:', err);
-
-  // 2. Handle specific error types with proper codes and context
-  let code = ErrorCode.InternalError;
-  let message = 'An internal server error occurred.';
-  let data: unknown = undefined;
-
-  if (err instanceof CalculatorServerError) {
-    code = err.code;
-    message = err.message;
-    data = err.context; // Include contextual information for debugging
-  } else if (err instanceof McpError) {
-    code = err.code;
-    message = err.message;
-    data = err.data;
-  }
-
-  // 3. Always send protocol-compliant JSON-RPC error responses
-  res.status(500).json({ jsonrpc: '2.0', id: rpcId, error: { code, message, data } });
-});
-```
-
-## 📊 Features Implemented
-
-This server implements a comprehensive set of capabilities to demonstrate a production-grade system.
-
-| Feature                          | Description                                                                                        | Key Pattern Demonstrated                                                                       |
-| :------------------------------- | :------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- |
-| **Hybrid Storage**               | Switches between in-memory and Redis via `USE_REDIS` env var.                                      | **Strategy Pattern** and environment-based configuration.                                      |
-| **Persistent History**           | Calculation history is saved as part of the session data.                                          | **Stateful Tool Use:** Tools modify session state which is then persisted.                     |
-| **Gold-Standard Error Handling** | Complete error boundary coverage with typed errors and comprehensive TSDoc documentation.          | **Multi-Layered Defense:** Custom error hierarchy + global safety net + contextual error data. |
-| **DRY Code Architecture**        | Single `getOrCreateInstances` helper eliminates reconstruction logic duplication.                  | **Maintainability:** Critical patterns abstracted into reusable, well-documented functions.    |
-| **Health Checks**                | `/health` endpoint reports server status, including Redis connectivity.                            | **Observability:** Providing critical system status for monitoring.                            |
-| **Prometheus Metrics**           | `/metrics` endpoint exposes `mcp_active_sessions` and more.                                        | **Monitoring:** Exposing key performance indicators for a metrics scraper.                     |
-| **Complete Documentation**       | Every tool, resource, and prompt handler documents exact failure modes with `@throws` annotations. | **Predictable APIs:** Clear contracts for all failure scenarios.                               |
-
-## 🧪 Testing & Validation
-
-### Health & Metrics
-
-Verify the server's operational status and view its metrics. The `/health` endpoint is aware of the storage mode.
-
-```bash
-# Check basic health (works in both modes)
-curl http://localhost:1453/health
-
-# In Redis mode, a healthy response will include:
-# "storageMode": "redis", "redis": "ready"
-
-# Check Prometheus-style metrics
-curl http://localhost:1453/metrics
-```
-
-### Manual Request (with `curl`)
-
-Use `curl` to test the full session lifecycle.
-
-```bash
-# 1. Initialize a session and capture the Mcp-Session-Id header
-SESSION_ID=$(curl -i -X POST http://localhost:1453/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1.0.0"}}' \
-  | grep -i Mcp-Session-Id | awk '{print $2}' | tr -d '\r')
-
-echo "Acquired Session ID: $SESSION_ID"
-
-# 2. Use the session ID to call a tool
-curl -X POST http://localhost:1453/mcp \
-  -H "Content-Type: application/json" \
-  -H "Mcp-Session-Id: $SESSION_ID" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"calculate","arguments":{"a":100,"b":50,"op":"add"}}}'
-```
-
-### Interactive Testing with MCP Inspector
-
-Use the official inspector to interactively test the stateful server.
-
-```bash
-# The inspector will handle the session ID automatically.
-npx @modelcontextprotocol/inspector --cli http://localhost:1453/mcp
-```
-
-## 🏭 Deployment & Configuration
-
-### Configuration
-
-The server is configured using environment variables.
-
-| Variable           | Description                                                                                                                                                                                                                                                                             | Default                  |
-| :----------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------- |
-| `PORT`             | The port for the HTTP server to listen on.                                                                                                                                                                                                                                              | `1453`                   |
-| `USE_REDIS`        | **Set to `true` to enable Redis for distributed state.**                                                                                                                                                                                                                                | `false`                  |
-| `REDIS_URL`        | The connection string for the Redis instance.                                                                                                                                                                                                                                           | `redis://localhost:6379` |
-| `LOG_LEVEL`        | Logging verbosity (`debug`, `info`, `warn`, `error`).                                                                                                                                                                                                                                   | `info`                   |
-| `CORS_ORIGIN`      | Allowed origin for CORS. Use a specific domain in production.                                                                                                                                                                                                                           | `*`                      |
-| `SAMPLE_TOOL_NAME` | **(Educational)** Demonstrates dynamic tool registration via environment variables. When set, adds a simple echo tool with the specified name that takes a `value` parameter and returns `test string print: {value}`. This pattern shows how MCP servers can be configured at runtime. | None                     |
-
-### Production Deployment
-
-This server is designed for high-availability, horizontally-scaled deployments.
-
-- **Containerization:** The multi-stage `Dockerfile` creates a lean, secure production image. The `docker-compose.yml` file is ready for multi-replica scaling (`docker-compose up --scale mcp-server=4`).
-- **Load Balancing:** Deploy behind any standard load balancer. **Sticky sessions are not required** due to the "Just-in-Time Reconstruction" architecture.
-- **Zero-Downtime Updates:** Because session state is externalized to Redis, you can perform rolling deployments of new server versions without interrupting or losing active user sessions.
+MIT
