@@ -1,108 +1,63 @@
-# MCP HTTP Stateful Boilerplate (TypeScript SDK v2)
+# example-mcp-stateful
 
-Learning-first boilerplate for building **stateful MCP servers over Streamable HTTP** with official MCP TypeScript SDK v2 pre-release primitives.
+learning-first boilerplate for stateful MCP servers over Streamable HTTP with TypeScript SDK v2.
 
-## Changelog (Latest First)
+> part of a series: [stdio](https://github.com/yigitkonur/example-mcp-stdio) · [stateless](https://github.com/yigitkonur/example-mcp-stateless) · **stateful** (you are here) · [sse](https://github.com/yigitkonur/example-mcp-sse)
 
-### 2026-02-21 - Major Rewrite for Upcoming TypeScript SDK v2
+## what it does
 
-- Migrated from legacy v1-style code to v2 server/node primitives.
-- Rebuilt runtime around stateful Streamable HTTP lifecycle (`POST`/`GET`/`DELETE /mcp`).
-- Added scaffold creator CLI and starter templates.
-- Added full documentation set and protocol/testing guides.
-- Kept installs reproducible with vendored official v2 pre-release tarballs.
+- runs a stateful MCP server where sessions persist across requests with in-memory storage
+- implements the full Streamable HTTP lifecycle: `POST /mcp` (JSON-RPC), `GET /mcp` (SSE stream), `DELETE /mcp` (session close)
+- demonstrates SSE resumability via an in-memory event store with `Last-Event-Id` replay
+- registers example tools (`add_note`, `list_notes`, `simulate_work`), resources (`session://overview`, `session://notes/{index}`), and a prompt (`study-notes`)
+- includes a scaffold CLI to generate new projects from templates
+- vendors MCP TypeScript SDK v2 pre-release tarballs for reproducible installs
 
-Full history: `CHANGELOG.md`.
-
-## What This Repository Provides
-
-- runnable reference server (`src/`)
-- scaffold creator CLI (`mcp-stateful-starter`)
-- project templates (`templates/http-stateful/`)
-- docs for setup, architecture, v2 migration context, and verification (`docs/`)
-
-## SDK v2 Context
-
-This project targets MCP TypeScript SDK **v2 pre-release** (`main` branch in the official SDK repository).
-
-Key v2 shifts reflected here:
-
-- package split (`server`/`client`/`core` model)
-- Node HTTP transport via `NodeStreamableHTTPServerTransport`
-- registration APIs (`registerTool`, `registerResource`, `registerPrompt`)
-- server-side SDK auth exports removed (auth should be external middleware)
-- server-side SSE transport removed (Streamable HTTP is the path)
-
-Official references:
-
-- SDK repo: <https://github.com/modelcontextprotocol/typescript-sdk>
-- migration guide: <https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/migration.md>
-- server guide: <https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/server.md>
-
-## Quick Start
+## quick start
 
 ```bash
 npm install
 npm run dev
 ```
 
-Default endpoints:
+server starts at `http://127.0.0.1:1453`. endpoints:
 
-- MCP: `http://127.0.0.1:1453/mcp`
-- health: `http://127.0.0.1:1453/health`
-- sessions: `http://127.0.0.1:1453/sessions`
+- `POST /mcp` -- JSON-RPC requests
+- `GET /mcp` -- SSE stream
+- `DELETE /mcp` -- close session
+- `GET /health` -- health check
+- `GET /sessions` -- list active sessions
 
-## Scaffold Creator CLI
+Docker alternative:
 
-Generate a new starter project:
+```bash
+docker compose up --build -d
+```
+
+## scaffold cli
+
+generate a new project from the included templates:
 
 ```bash
 npm run create -- init my-mcp-app
 ```
 
-or from built output:
+options: `--force`, `--dir <path>`, `--sdk vendored|registry`. see [scaffold CLI docs](docs/03-scaffold-cli.md) for details.
 
-```bash
-node dist/cli/index.js init my-mcp-app
-```
+## documentation
 
-Common options:
+| doc | description |
+|-----|-------------|
+| [getting started](docs/01-getting-started.md) | install, run, verify endpoints |
+| [architecture](docs/02-architecture.md) | module layout, session lifecycle, resumability |
+| [scaffold cli](docs/03-scaffold-cli.md) | generate new projects from templates |
+| [sdk v2 notes](docs/04-sdk-v2-notes.md) | v2 packages, vendoring, migration |
+| [validation](docs/05-validation.md) | smoke tests, primitive checks, release checklist |
 
-```bash
-npm run create -- init my-mcp-app --force
-npm run create -- init my-mcp-app --dir ./playground
-npm run create -- init my-mcp-app --sdk registry
-```
+## sdk v2 context
 
-- default mode is `--sdk vendored` (recommended for reproducibility)
-- `--sdk registry` uses `2.0.0-alpha.0` package versions directly
+this project targets MCP TypeScript SDK v2 pre-release (`2.0.0-alpha.0`). the v2 SDK splits the monolithic `@modelcontextprotocol/sdk` package into `server`, `node`, `client`, and `core`. this repo uses `@modelcontextprotocol/server` for `McpServer` and `@modelcontextprotocol/node` for `NodeStreamableHTTPServerTransport`. vendored tarballs under `vendor/mcp-sdk-v2/` ensure reproducible installs until v2 reaches stable release.
 
-## Documentation
-
-Start here: `docs/README.md`
-
-- setup and local run: `docs/getting-started.md`
-- scaffold usage: `docs/scaffold-cli.md`
-- v2 notes and limitations: `docs/v2-sdk-notes.md`
-- protocol behavior: `docs/http-stateful-v2-deep-dive.md`
-- test/verification framework: `docs/testing-and-validation.md`
-
-## v2 Packaging Strategy
-
-Because v2 is pre-release, this project vendors official package tarballs:
-
-- `vendor/mcp-sdk-v2/modelcontextprotocol-server-2.0.0-alpha.0.tgz`
-- `vendor/mcp-sdk-v2/modelcontextprotocol-node-2.0.0-alpha.0.tgz`
-
-Pinned source commit: `c4ee360aac7afd2964785abac379a290d0c9847a` (SDK main, 2026-02-20).
-
-## Validation Commands
-
-- `npm run check` - typecheck + lint + format check
-- `npm run build` - compile TypeScript
-- `npm run smoke` - end-to-end MCP smoke test
-- `npm run ci` - check + build + smoke
-
-## License
+## license
 
 MIT

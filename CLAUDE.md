@@ -1,53 +1,47 @@
 # CLAUDE.md
 
-Agent notes for this repository.
+## project
 
-## Project purpose
+learning-first boilerplate for stateful MCP servers over Streamable HTTP, built on TypeScript SDK v2 pre-release.
 
-This repo is a **learning-first MCP stateful HTTP boilerplate** based on the official TypeScript SDK v2 pre-release APIs.
+## what's inside
 
-It includes:
+- `src/index.ts` -- process entrypoint, HTTP server, graceful shutdown
+- `src/config.ts` -- Zod-based environment variable parsing
+- `src/http/createHttpApp.ts` -- Express routes, transport/session wiring, cleanup timer
+- `src/mcp/createLearningServer.ts` -- MCP tools/resources/prompts registration
+- `src/state/sessionRegistry.ts` -- session runtime lifecycle (store, lookup, expire, close)
+- `src/state/inMemoryEventStore.ts` -- in-memory EventStore for SSE resumability
+- `src/cli/index.ts` -- scaffold CLI with `init` command
+- `templates/http-stateful/` -- template files for generated projects
+- `vendor/mcp-sdk-v2/` -- vendored SDK v2 pre-release tarballs
+- `scripts/smoke.mjs` -- end-to-end smoke test
 
-- a runnable example server (`src/`)
-- a starter generator CLI (`src/cli/index.ts`)
-- starter templates (`templates/http-stateful/`)
+## transport
 
-## Core runtime architecture
+stateful Streamable HTTP. three MCP endpoints on `/mcp`:
 
-- `src/index.ts`: process entrypoint and graceful shutdown
-- `src/http/createHttpApp.ts`: Express routes and transport/session wiring
-- `src/mcp/createLearningServer.ts`: tools/resources/prompts registration
-- `src/state/sessionRegistry.ts`: session runtime lifecycle
-- `src/state/inMemoryEventStore.ts`: SSE resumability event storage
-- `src/config.ts`: environment parsing and defaults
+- `POST /mcp` -- JSON-RPC requests (initialize creates session, subsequent requests reuse it)
+- `GET /mcp` -- SSE stream for server-to-client notifications
+- `DELETE /mcp` -- close session and clean up runtime
 
-## MCP transport model
+sessions are identified by the `Mcp-Session-Id` header. in-memory session registry with TTL-based expiration.
 
-Only Streamable HTTP stateful mode is supported:
+## SDK rules
 
-- `POST /mcp`
-- `GET /mcp`
-- `DELETE /mcp`
+- use only v2 APIs: `McpServer`, `registerTool`, `registerResource`, `registerPrompt`
+- no v1 imports (`@modelcontextprotocol/sdk`, `SSEServerTransport`, `server.tool()`)
+- Zod v4 (`zod/v4`) for all schemas
+- vendored tarballs in `vendor/mcp-sdk-v2/` -- do not delete unless switching to registry
+- `@modelcontextprotocol/server` for server logic, `@modelcontextprotocol/node` for Node.js HTTP transport
 
-Transport implementation: `NodeStreamableHTTPServerTransport` from `@modelcontextprotocol/node`.
+## commands
 
-## SDK v2 pre-release packaging
-
-This repo vendors official packed v2 artifacts under `vendor/mcp-sdk-v2/` for reproducible installs in environments where registry availability may vary.
-
-## Development commands
-
-- `npm run dev`
-- `npm run check`
-- `npm run build`
-- `npm run smoke`
-- `npm run ci`
-- `npm run create -- init <name>`
-
-## Cleanup policy
-
-Keep the codebase lean:
-
-- no v1 API usage/imports
-- no dead code, duplicate initialization, or stale Redis-era docs
-- no hidden side scripts; keep flows explicit in npm scripts and docs
+- `npm run dev` -- start with live reload (tsx watch)
+- `npm run build` -- clean + compile TypeScript
+- `npm run start` -- run compiled output
+- `npm run check` -- typecheck + lint + format check
+- `npm run smoke` -- end-to-end smoke test
+- `npm run ci` -- check + build + smoke
+- `npm run create -- init <name>` -- scaffold a new project
+- `make docker-up` / `make docker-down` -- Docker Compose lifecycle
